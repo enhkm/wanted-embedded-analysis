@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>임베디드 채용 요건 대시보드</title>
+<style>
+:root {
+  --font-anthropic-sans: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-anthropic-serif: Georgia, "Nanum Myeongjo", serif;
+  --cds-font-size-caption: 0.8125rem; --cds-font-size-body: 0.9375rem;
+  --cds-font-size-heading: 1.0625rem; --cds-font-size-title: 1.75rem;
+  --cds-font-weight-medium: 500;
+  --cds-gap-xs: 0.25rem; --cds-gap-sm: 0.5rem; --cds-gap-md: 0.75rem; --cds-gap-lg: 1.25rem;
+  --cds-pad-md: 0.75rem; --cds-pad-lg: 1.25rem; --cds-radius: 10px; --cds-dur-slow: 0.3s;
+  --color-fg: #1d2127; --color-fg-muted: #5d6573; --color-bg: #f5f6f8; --color-panel: #ffffff;
+  --color-border-line: #e1e4e9; --color-bad: #c43c3c;
+  --c1: #2a6fd6; --c2: #4f8f6a; --c3: #b0772a;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --color-fg: #e9ecf1; --color-fg-muted: #a2aab7; --color-bg: #15181d; --color-panel: #1e2228;
+    --color-border-line: #333a44; --c1: #6ea2ef; --c2: #7cbf97; --c3: #d9a35a; color-scheme: dark; }
+}
+body { margin: 0; background: var(--color-bg); color: var(--color-fg); font-family: var(--font-anthropic-sans); font-size: var(--cds-font-size-body); }
+#dash-root { max-width: 1120px; margin-inline: auto; padding: 32px 16px 48px; }
+.dash-skeleton { color: transparent; background: var(--color-border-line); border-radius: 6px; min-height: 1em; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="data.js"></script>
+<script>
+// Claude 대시보드 런타임의 dash API 중 이 페이지가 쓰는 부분만 흉내 낸 최소 구현
+window.dash = (() => {
+  const sets = window.DASH_DATA, calcs = {}, cache = {};
+  const rows = (id) => {
+    if (id in sets) return sets[id];
+    if (!calcs[id]) return null;
+    if (!(id in cache)) cache[id] = calcs[id].fn(...calcs[id].inputs.map(rows));
+    return cache[id];
+  };
+  return {
+    data: (id) => { const d = rows(id); return d == null ? { status: 'missing', data: [] } : { status: 'ok', data: d, columns: d.length ? Object.keys(d[0]) : [] }; },
+    calc: (id, o) => { calcs[id] = o; },
+    onData: (fn) => { fn(); },
+    colors: ['var(--c1)', 'var(--c2)', 'var(--c3)'],
+    params: () => ({}), setParams() {}, resetParams() {}, refresh() {}, setLink() {},
+  };
+})();
+</script>
+</head>
+<body>
+<div id="dash-root">
+<style>
+.ej { font-family: var(--font-anthropic-sans); display: grid; gap: var(--cds-gap-lg); }
+.ej-head h1 { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; }
+.ej-take { color: var(--color-fg-muted); margin: var(--cds-gap-xs) 0 0; max-width: 70ch; }
+.ej-take b, .ej b { font-weight: 600; color: var(--color-fg); }
+.ej-scope { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: var(--cds-gap-xs) 0 0; }
+.ej-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr)); gap: var(--cds-gap-md); }
+.ej-tile, .ej-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); }
+.ej-tile { padding: var(--cds-pad-md) var(--cds-pad-lg); display: grid; gap: var(--cds-gap-xs); align-content: start; }
+.ej-tile .lbl { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.ej-tile .num { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.ej-tile .sub { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.ej-card { padding: var(--cds-pad-lg); display: grid; gap: var(--cds-gap-sm); min-width: 0; align-content: start; }
+.ej-card h2 { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0; }
+.ej-note { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: 0; }
+.ej-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: var(--cds-gap-md); }
+.ej-wide { grid-column: 1 / -1; }
+.ej-chips { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs); }
+.ej-chip { font: inherit; font-size: var(--cds-font-size-caption); padding: 0.25rem 0.65rem; border-radius: 999px; border: 1px solid var(--color-border-line); background: var(--color-bg); color: var(--color-fg); cursor: pointer; }
+.ej-chip[aria-pressed="true"] { background: var(--color-fg); color: var(--color-bg); border-color: var(--color-fg); }
+.ej-chip:focus-visible, .ej-kw:focus-visible, .ej-table tbody tr:focus-visible, .ej-table th button:focus-visible { outline: 2px solid var(--color-fg); outline-offset: 2px; }
+.ej-legend { display: flex; gap: var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); align-items: center; flex-wrap: wrap; }
+.ej-sw { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 3px; vertical-align: -1px; margin-right: 0.3rem; }
+.ej-kwlist { display: grid; gap: 0.35rem; min-height: 12rem; }
+.ej-kw { display: grid; grid-template-columns: minmax(7rem, 13rem) 1fr 4.5rem; gap: var(--cds-gap-sm); align-items: center; font-size: var(--cds-font-size-caption); cursor: pointer; border-radius: 4px; padding: 0.1rem 0.25rem; }
+.ej-kw:hover { background: var(--color-bg); }
+.ej-kw.sel { background: var(--color-bg); outline: 1px solid var(--color-border-line); }
+.ej-kw .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ej-kw .grp { color: var(--color-fg-muted); }
+.ej-kw .track { display: flex; height: 0.85rem; min-width: 0; }
+.ej-kw .bar { height: 100%; }
+.ej-kw .bar.r { border-radius: 4px 0 0 4px; }
+.ej-kw .bar.p { border-radius: 0 4px 4px 0; opacity: 0.45; }
+.ej-kw .bar.r:last-child { border-radius: 4px; }
+.ej-kw .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--color-fg-muted); }
+.ej-kw .val b { color: var(--color-fg); }
+.ej-hbars { display: grid; gap: 0.4rem; min-height: 9rem; }
+.ej-hb { display: grid; grid-template-columns: 4.5rem 1fr 3.5rem; gap: var(--cds-gap-sm); align-items: center; font-size: var(--cds-font-size-caption); }
+.ej-hb .bar { height: 0.9rem; border-radius: 4px; }
+.ej-hb .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--color-fg-muted); }
+.ej-tools { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); align-items: center; }
+.ej-tools input, .ej-tools select { font: inherit; font-size: var(--cds-font-size-caption); padding: 0.35rem 0.6rem; border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); background: var(--color-bg); color: var(--color-fg); min-width: 0; }
+.ej-tools input { flex: 1 1 14rem; }
+.ej-active { font-size: var(--cds-font-size-caption); }
+.ej-tablebox { max-height: 34rem; overflow: auto; border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); }
+.ej-table { width: 100%; border-collapse: collapse; font-size: var(--cds-font-size-caption); }
+.ej-table th { position: sticky; top: 0; background: var(--color-panel); text-align: left; font-weight: 500; border-bottom: 1px solid var(--color-border-line); padding: 0; z-index: 1; }
+.ej-table th button { all: unset; display: block; padding: 0.5rem 0.6rem; cursor: pointer; white-space: nowrap; }
+.ej-table td { padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--color-border-line); vertical-align: top; }
+.ej-table tbody tr { cursor: pointer; }
+.ej-table tbody tr:hover td { background: var(--color-bg); }
+.ej-table tbody tr.sel td { background: var(--color-bg); }
+.ej-table .co { white-space: nowrap; }
+.ej-table .tags { color: var(--color-fg-muted); min-width: 14rem; }
+.ej-table .exp { white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .ej-table .hide-n { display: none; } }
+.ej-detail h3 { margin: 0; font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); }
+.ej-detail .meta { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.ej-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: var(--cds-gap-md); }
+.ej-cols h4 { margin: 0 0 var(--cds-gap-xs); font-size: var(--cds-font-size-body); font-weight: 600; }
+.ej-text { white-space: pre-wrap; font-size: var(--cds-font-size-caption); line-height: 1.6; margin: 0; overflow-wrap: anywhere; }
+.ej-detail a { color: var(--color-fg); }
+[data-dash-source-state=empty] { color: transparent; }
+[data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+.ej-fail { display: flex; align-items: center; justify-content: center; gap: 0.4rem; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); min-height: inherit; }
+.ej-fail::before { content: ""; width: 0.375rem; height: 0.375rem; border-radius: 50%; background: var(--color-bad); }
+</style>
+
+<div class="ej">
+  <header class="ej-head" id="top">
+    <h1>임베디드 채용 요건 대시보드</h1>
+    <p class="ej-take" id="takeaway"><span class="dash-skeleton">—</span></p>
+    <p class="ej-scope">원티드 개발 › 임베디드 개발자 외 1개 직무 필터(전세계, 경력 전체) 기준 · 2026년 10월 12일 수집. 필수/우대는 공고의 '자격요건'과 '우대사항' 본문에서 키워드로 집계했습니다.</p>
+  </header>
+
+  <section class="ej-tiles" id="kpis" aria-label="핵심 수치">
+    <div class="ej-tile"><span class="lbl">공고 수</span><span class="num dash-skeleton" data-source="summary" data-row="0" data-field="postings">—</span><span class="sub">수집한 전체 공고</span></div>
+    <div class="ej-tile"><span class="lbl">채용 기업</span><span class="num dash-skeleton" data-source="summary" data-row="0" data-field="companies">—</span><span class="sub">공고를 낸 회사 수</span></div>
+    <div class="ej-tile"><span class="lbl">신입 지원 가능</span><span class="num dash-skeleton" data-source="summary" data-row="0" data-field="entry_share">—</span><span class="sub">최소 경력 0년 공고 비율</span></div>
+    <div class="ej-tile"><span class="lbl">최소 경력 중앙값</span><span class="num dash-skeleton" data-source="summary" data-row="0" data-field="median_exp">—</span><span class="sub">공고별 하한 경력 기준</span></div>
+    <div class="ej-tile"><span class="lbl">C 또는 C++ 필수</span><span class="num dash-skeleton" data-source="summary" data-row="0" data-field="c_share">—</span><span class="sub">자격요건에 명시한 비율</span></div>
+  </section>
+
+  <section class="ej-card" id="keywords-card">
+    <h2>자주 요구되는 요건</h2>
+    <p class="ej-note">막대 하나가 공고 수입니다. 진한 부분은 자격요건(필수)에, 연한 부분은 우대사항에만 나온 공고입니다. 항목을 누르면 아래 공고 목록이 그 요건을 필수로 적은 공고로 좁혀집니다.</p>
+    <div class="ej-chips" id="groups" role="group" aria-label="요건 분류"></div>
+    <div class="ej-legend"><span><span class="ej-sw" id="sw-r"></span>필수</span><span><span class="ej-sw" id="sw-p"></span>우대에만 있음</span></div>
+    <div class="ej-kwlist dash-skeleton" id="kwlist" data-source="keywords"></div>
+  </section>
+
+  <div class="ej-grid">
+    <section class="ej-card" id="exp-card">
+      <h2>요구 경력</h2>
+      <p class="ej-note">공고에 적힌 최소 경력(하한) 기준 공고 수</p>
+      <div class="ej-hbars dash-skeleton" id="expbars" data-source="by_exp"></div>
+    </section>
+    <section class="ej-card" id="loc-card">
+      <h2>근무 지역</h2>
+      <p class="ej-note">공고의 근무지 기준 공고 수 (상위 8곳)</p>
+      <div class="ej-hbars dash-skeleton" id="locbars" data-source="by_location"></div>
+    </section>
+  </div>
+
+  <section class="ej-card" id="postings-card">
+    <h2>공고별 필수 요건</h2>
+    <p class="ej-note">행을 누르면 아래에 자격요건과 우대사항 원문이 나옵니다. 머리글을 누르면 정렬됩니다.</p>
+    <div class="ej-tools">
+      <input id="q" type="search" placeholder="회사, 포지션, 요건 검색 (예: STM32, ROS, 석사)" aria-label="공고 검색">
+      <select id="expf" aria-label="경력 필터">
+        <option value="">경력 전체</option><option>신입</option><option>1~2년</option><option>3~4년</option><option>5~7년</option><option>8년 이상</option>
+      </select>
+      <button class="ej-chip" id="kwclear" hidden></button>
+      <span class="ej-active" id="count"></span>
+    </div>
+    <div class="ej-tablebox">
+      <table class="ej-table" id="ptable" data-source="postings" data-row-key="id">
+        <thead><tr>
+          <th data-field="company" aria-sort="none"><button data-k="company">기업</button></th>
+          <th data-field="position" aria-sort="none"><button data-k="position">포지션</button></th>
+          <th data-field="exp_band" aria-sort="none"><button data-k="exp_from">경력</button></th>
+          <th data-field="location" class="hide-n" aria-sort="none"><button data-k="location">지역</button></th>
+          <th data-field="required_tags" class="hide-n" aria-sort="none"><button data-k="required_tags">필수 요건 키워드</button></th>
+        </tr></thead>
+        <tbody id="pbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="ej-card ej-detail" id="detail" hidden>
+    <h3 id="d-title"></h3>
+    <div class="meta" id="d-meta"></div>
+    <div class="ej-cols">
+      <div><h4>자격요건</h4><p class="ej-text" id="d-req"></p></div>
+      <div><h4>우대사항</h4><p class="ej-text" id="d-pref"></p></div>
+    </div>
+    <a id="d-link" href="https://www.wanted.co.kr/" target="_blank" rel="noopener">원티드에서 공고 보기</a>
+  </section>
+</div>
+
+<script>
+dash.calc('summary', {
+  inputs: ['postings', 'keywords'],
+  title: '핵심 수치',
+  description: '공고 수, 기업 수, 신입 가능 비율, 최소 경력 중앙값, C/C++ 필수 비율, 가장 많이 요구된 요건',
+  fn: (postings, keywords) => {
+    const n = postings.length;
+    const exp = postings.map((p) => Number(p.exp_from)).sort((a, b) => a - b);
+    const hasC = postings.filter((p) => p.required_tags.split(' · ').some((t) => t === 'C' || t === 'C++')).length;
+    const skillGroups = ['언어', 'OS·플랫폼', '하드웨어', '통신·프로토콜', '로보틱스·AI', '개발도구·협업'];
+    const top = keywords.filter((k) => skillGroups.includes(k.group)).sort((a, b) => b.required - a.required)[0];
+    const mid = postings.filter((p) => p.exp_band === '3~4년' || p.exp_band === '5~7년').length;
+    return [{
+      postings: n,
+      companies: new Set(postings.map((p) => p.company)).size,
+      entry_share: postings.filter((p) => Number(p.exp_from) === 0).length / n,
+      median_exp: exp[Math.floor((n - 1) / 2)],
+      c_share: hasC / n,
+      top_keyword: top.keyword,
+      top_keyword_count: top.required,
+      mid_share: mid / n,
+    }];
+  },
+});
+dash.calc('by_exp', {
+  inputs: ['postings'],
+  title: '경력 구간별 공고 수',
+  description: '공고의 최소 경력을 구간으로 묶어 센 값',
+  fn: (postings) => ['신입', '1~2년', '3~4년', '5~7년', '8년 이상'].map((b) => ({ exp_band: b, count: postings.filter((p) => p.exp_band === b).length })),
+});
+dash.calc('by_location', {
+  inputs: ['postings'],
+  title: '지역별 공고 수',
+  description: '근무지별 공고 수, 많은 순 상위 8곳',
+  fn: (postings) => {
+    const counts = {};
+    postings.forEach((p) => { const k = p.location || '미기재'; counts[k] = (counts[k] || 0) + 1; });
+    return Object.entries(counts).map(([location, count]) => ({ location, count })).sort((a, b) => b.count - a.count).slice(0, 8);
+  },
+});
+
+(() => {
+  const fmt = d3.format(',');
+  const pct = d3.format('.0%');
+  const GROUPS = ['전체', '언어', 'OS·플랫폼', '하드웨어', '통신·프로토콜', '로보틱스·AI', '개발도구·협업', '도메인', '자격·조건'];
+  const state = { group: '전체', kw: null, q: '', exp: '', sort: { k: null, dir: 1 }, sel: null };
+  const $ = (id) => document.getElementById(id);
+  const colR = dash.colors[0], colP = dash.colors[0];
+  $('sw-r').style.background = colR; $('sw-p').style.background = colP; $('sw-p').style.opacity = '0.45';
+
+  const fail = (el) => { el.classList.remove('dash-skeleton'); el.replaceChildren(); const d = document.createElement('div'); d.className = 'ej-fail'; d.textContent = 'Failed to load'; el.append(d); };
+
+  // group chips
+  const gwrap = $('groups');
+  GROUPS.forEach((g) => {
+    const b = document.createElement('button');
+    b.className = 'ej-chip'; b.type = 'button'; b.textContent = g; b.dataset.g = g;
+    b.addEventListener('click', () => { state.group = g; draw(); });
+    gwrap.append(b);
+  });
+
+  $('q').addEventListener('input', (e) => { state.q = e.target.value.trim().toLowerCase(); drawTable(); });
+  $('expf').addEventListener('change', (e) => { state.exp = e.target.value; drawTable(); });
+  $('kwclear').addEventListener('click', () => { state.kw = null; draw(); });
+  document.querySelectorAll('#ptable th button').forEach((b) => b.addEventListener('click', () => {
+    const k = b.dataset.k;
+    state.sort = { k, dir: state.sort.k === k ? -state.sort.dir : 1 };
+    drawTable();
+  }));
+  $('pbody').addEventListener('click', (e) => { const tr = e.target.closest('tr[data-key]'); if (tr) showDetail(tr.dataset.key); });
+  $('pbody').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const tr = e.target.closest('tr[data-key]'); if (tr) showDetail(tr.dataset.key); } });
+
+  function hbars(el, rows, labelKey, color) {
+    el.classList.remove('dash-skeleton');
+    const max = d3.max(rows, (r) => r.count) || 1;
+    el.replaceChildren(...rows.map((r) => {
+      const row = document.createElement('div'); row.className = 'ej-hb';
+      const l = document.createElement('span'); l.textContent = r[labelKey];
+      const t = document.createElement('div');
+      const bar = document.createElement('div'); bar.className = 'bar'; bar.style.width = (r.count / max * 100) + '%'; bar.style.background = color;
+      t.append(bar);
+      const v = document.createElement('span'); v.className = 'val'; v.textContent = fmt(r.count) + '건';
+      row.append(l, t, v); return row;
+    }));
+  }
+
+  function drawKeywords() {
+    const el = $('kwlist');
+    const k = dash.data('keywords');
+    gwrap.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.g === state.group)));
+    if (k.status === 'error') return fail(el);
+    if (k.status !== 'ok') return;
+    el.classList.remove('dash-skeleton');
+    let rows = k.data.map((r) => ({ ...r, required: Number(r.required), preferred: Number(r.preferred) }));
+    if (state.group !== '전체') rows = rows.filter((r) => r.group === state.group);
+    rows = rows.filter((r) => r.required + r.preferred > 0).sort((a, b) => b.required - a.required || b.preferred - a.preferred);
+    if (state.group === '전체') rows = rows.slice(0, 20);
+    const max = d3.max(rows, (r) => r.required + r.preferred) || 1;
+    el.replaceChildren(...rows.map((r) => {
+      const row = document.createElement('div');
+      row.className = 'ej-kw' + (state.kw === r.keyword ? ' sel' : '');
+      row.tabIndex = 0; row.setAttribute('role', 'button');
+      const nm = document.createElement('span'); nm.className = 'name';
+      nm.textContent = r.keyword;
+      if (state.group === '전체') { const g = document.createElement('span'); g.className = 'grp'; g.textContent = ' · ' + r.group; nm.append(g); }
+      nm.title = r.keyword + ' (' + r.group + ')';
+      const tr = document.createElement('div'); tr.className = 'track';
+      const br = document.createElement('div'); br.className = 'bar r'; br.style.width = (r.required / max * 100) + '%'; br.style.background = colR;
+      tr.append(br);
+      if (r.preferred > 0) { const bp = document.createElement('div'); bp.className = 'bar p'; bp.style.width = (r.preferred / max * 100) + '%'; bp.style.background = colP; tr.append(bp); }
+      const v = document.createElement('span'); v.className = 'val';
+      const b = document.createElement('b'); b.textContent = fmt(r.required);
+      v.append(b, document.createTextNode(' / ' + fmt(r.preferred)));
+      row.append(nm, tr, v);
+      const pick = () => { state.kw = state.kw === r.keyword ? null : r.keyword; draw(); if (state.kw) $('postings-card').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+      row.addEventListener('click', pick);
+      row.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+      return row;
+    }));
+  }
+
+  function filtered(rows) {
+    return rows.filter((p) => {
+      if (state.exp && p.exp_band !== state.exp) return false;
+      if (state.kw && !p.required_tags.split(' · ').includes(state.kw)) return false;
+      if (state.q) {
+        const hay = (p.company + ' ' + p.position + ' ' + p.requirements + ' ' + p.preferred + ' ' + p.location).toLowerCase();
+        if (!hay.includes(state.q)) return false;
+      }
+      return true;
+    });
+  }
+
+  const expText = (p) => {
+    const a = Number(p.exp_from), b = p.exp_to == null ? null : Number(p.exp_to);
+    if (a === 0 && b == null) return '경력 무관';
+    if (a === 0) return '신입~' + b + '년';
+    return b == null ? a + '년 이상' : a + '~' + b + '년';
+  };
+
+  function drawTable() {
+    const p = dash.data('postings');
+    const body = $('pbody');
+    $('kwclear').hidden = !state.kw;
+    $('kwclear').textContent = state.kw ? '필수: ' + state.kw + ' ×' : '';
+    if (p.status === 'error') { body.replaceChildren(); $('count').textContent = '불러오지 못했습니다'; return; }
+    if (p.status !== 'ok') return;
+    let rows = filtered(p.data);
+    const { k, dir } = state.sort;
+    if (k) rows = rows.slice().sort((a, b) => k === 'exp_from' ? dir * (Number(a.exp_from) - Number(b.exp_from)) : dir * String(a[k]).localeCompare(String(b[k]), 'ko'));
+    document.querySelectorAll('#ptable th').forEach((th) => {
+      const kk = th.querySelector('button').dataset.k;
+      th.setAttribute('aria-sort', kk === k ? (dir > 0 ? 'ascending' : 'descending') : 'none');
+    });
+    $('count').textContent = fmt(rows.length) + '건 / 전체 ' + fmt(p.data.length) + '건';
+    body.replaceChildren(...rows.map((r) => {
+      const tr = document.createElement('tr'); tr.dataset.key = r.id; tr.tabIndex = 0;
+      if (state.sel === r.id) tr.className = 'sel';
+      const c = (txt, cls) => { const td = document.createElement('td'); if (cls) td.className = cls; td.textContent = txt; return td; };
+      tr.append(c(r.company, 'co'), c(r.position), c(r.exp_band, 'exp'), c(r.location, 'hide-n'), c(r.required_tags || '키워드 없음 (원문 확인)', 'tags hide-n'));
+      tr.title = expText(r);
+      return tr;
+    }));
+  }
+
+  function showDetail(id) {
+    const p = dash.data('postings');
+    if (p.status !== 'ok') return;
+    const r = p.data.find((x) => x.id === id);
+    if (!r) return;
+    state.sel = id;
+    const sec = $('detail'); sec.hidden = false;
+    $('d-title').textContent = r.company + ' · ' + r.position;
+    $('d-meta').textContent = expText(r) + ' · ' + (r.location || '지역 미기재') + (r.preferred_tags ? ' · 우대 키워드: ' + r.preferred_tags : '');
+    const req = $('d-req'), pref = $('d-pref');
+    req.textContent = r.requirements || '(본문에 자격요건이 없습니다)';
+    pref.textContent = r.preferred || '(본문에 우대사항이 없습니다)';
+    for (const [el, f] of [[req, 'requirements'], [pref, 'preferred']]) { el.dataset.source = 'postings'; el.dataset.field = f; el.dataset.where = 'id=' + encodeURIComponent(r.id); }
+    $('d-link').href = r.url;
+    drawTable();
+    sec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function drawSummary() {
+    const s = dash.data('summary');
+    const tiles = document.querySelectorAll('#kpis [data-field]');
+    const take = $('takeaway');
+    if (s.status !== 'ok' || !s.data.length) {
+      if (s.status === 'error') { tiles.forEach((t) => { t.classList.remove('dash-skeleton'); t.textContent = '—'; }); take.textContent = '수치를 불러오지 못했습니다.'; }
+      return;
+    }
+    const d = s.data[0];
+    const f = { postings: fmt(d.postings), companies: fmt(d.companies), entry_share: pct(d.entry_share), median_exp: d.median_exp + '년', c_share: pct(d.c_share) };
+    tiles.forEach((t) => { t.classList.remove('dash-skeleton'); t.textContent = f[t.dataset.field]; });
+    const mk = (field, text) => { const b = document.createElement('b'); b.dataset.source = 'summary'; b.dataset.row = '0'; b.dataset.field = field; b.textContent = text; return b; };
+    take.replaceChildren(
+      '가장 많이 요구하는 기술은 ', mk('top_keyword', d.top_keyword), '(', mk('top_keyword_count', fmt(d.top_keyword_count) + '건'), ')이고, 공고의 ',
+      mk('mid_share', pct(d.mid_share)), '가 최소 3~7년 경력을 요구합니다. 신입이 지원할 수 있는 공고는 ', mk('entry_share', pct(d.entry_share)), '입니다.'
+    );
+  }
+
+  function drawSmall() {
+    const e = dash.data('by_exp'), l = dash.data('by_location');
+    if (e.status === 'ok') hbars($('expbars'), e.data, 'exp_band', dash.colors[1]); else if (e.status === 'error') fail($('expbars'));
+    if (l.status === 'ok') hbars($('locbars'), l.data, 'location', dash.colors[2]); else if (l.status === 'error') fail($('locbars'));
+  }
+
+  function draw() { drawSummary(); drawKeywords(); drawSmall(); drawTable(); }
+  dash.onData(draw);
+})();
+</script>
+
+</div>
+</body>
+</html>
